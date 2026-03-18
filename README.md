@@ -1,7 +1,47 @@
-# Parkinson's Disease Detection with Machine Learning
+# Parkinson's Disease Detection and Telemonitoring Analysis
 
 ## Overview
-This project uses machine learning to detect Parkinson's Disease from voice measurements. The dataset is sourced from the UCI Machine Learning Repository and contains 24 features extracted from voice recordings of 195 individuals.
+This project contains two machine learning workflows built on UCI Parkinson datasets:
+
+1. **Classification** (`parkinsons_detection.py`)
+   - Detects Parkinson's disease status from voice features.
+2. **Regression** (`telemonitoring_analysis.py`)
+   - Predicts clinical symptom scores (`motor_UPDRS`, `total_UPDRS`) from telemonitoring voice signals.
+
+The codebase is updated for stronger methodological validity, better reproducibility, and richer model diagnostics.
+
+## Key Improvements Implemented
+- **Data leakage fixes**
+  - Scaling and sampling are applied inside model pipelines.
+- **Imbalance-safe model validation**
+  - Classification uses `StratifiedKFold` with `RandomOverSampler` inside an `imblearn` pipeline.
+- **Patient-level robust evaluation**
+  - Telemonitoring regression uses `GroupShuffleSplit` and `GroupKFold` with `subject#` to avoid patient leakage.
+- **Expanded model benchmarking**
+  - Classification: Logistic Regression, Random Forest, XGBoost
+  - Regression: Linear Regression, Random Forest, XGBoost, HistGradientBoosting, optional CatBoost
+- **Advanced tuning**
+  - Optuna-based hyperparameter optimization for XGBoost.
+- **Richer diagnostics**
+  - Sensitivity/specificity, calibration curve, ROC curve, error analysis.
+  - SHAP-based feature importance summary (if SHAP is available).
+
+## Why These Changes Were Necessary
+This repository is intended to answer a clinically meaningful question:
+
+**"Can we estimate Parkinson symptom severity for a new patient?"**
+
+To make the evaluation trustworthy for this use-case, the workflow was upgraded as follows:
+
+1. **Subject-safe validation**
+  - Same patient should not leak between train and test in cold-start evaluation.
+2. **Two deployment scenarios**
+  - **Cold-start:** brand-new patient (no prior target history).
+  - **Warm-start:** existing patient with prior follow-up history.
+3. **Stability and robustness**
+  - Robust objectives, clipping/capping, early stopping, and monotonic constraints were added to avoid unstable predictions.
+4. **Explainability and diagnostics**
+  - SHAP and detailed error analysis are exported for model behavior auditing.
 
 ## Technologies Used
 - Python 3
@@ -12,97 +52,114 @@ This project uses machine learning to detect Parkinson's Disease from voice meas
 - imbalanced-learn
 - matplotlib
 - seaborn
+- optuna
+- shap
+- catboost (optional)
 
-## Dataset
+## Datasets
 
-### Additional Dataset: Telemonitoring (Regression)
+### 1) Classification Dataset
+- **Source:** UCI Machine Learning Repository
+- **File:** `parkinsons/parkinsons.data`
+- **Samples:** 195
+- **Features:** 22 voice features + metadata
+- **Target:** `status` (0: healthy, 1: Parkinson)
+
+### 2) Telemonitoring Dataset (Regression)
 - **Source:** UCI Machine Learning Repository
 - **File:** `parkinsons/telemonitoring/parkinsons_updrs.data`
 - **Samples:** 5,875
-- **Features:** 16 voice features (+ subject info)
-- **Targets:** `motor_UPDRS`, `total_UPDRS` (clinician's Parkinson's symptom scores)
+- **Targets:** `motor_UPDRS`, `total_UPDRS`
+- **Grouping variable:** `subject#`
 
-## Project Steps
-1. **Library Installation**
-   - All required libraries are installed via pip.
-2. **Data Loading**
-   - The dataset is loaded using pandas.
-3. **Exploratory Data Analysis (EDA)**
-   - Data info, statistical summary, and class distribution are displayed.
-4. **Preprocessing**
-   - The `name` column is dropped.
-   - Features are scaled using MinMaxScaler.
-   - Class imbalance is handled with RandomOverSampler.
-5. **Model Training**
-   - XGBoost Classifier is trained on the resampled data.
-6. **Evaluation**
-   - Accuracy, classification report, AUC score, confusion matrix, and ROC curve are reported.
-7. **Model Improvement**
-   - Hyperparameter tuning is performed with GridSearchCV.
-8. **Reporting**
-   - The best model's performance is summarized and suggestions for future improvements are provided.
+## Installation
+Install all dependencies with:
 
----
-
-### Telemonitoring Dataset (Regression)
-1. **Data Loading**
-   - The telemonitoring dataset is loaded using pandas.
-2. **EDA**
-   - Target variable distributions are visualized.
-3. **Preprocessing**
-   - Subject info columns are excluded; features are scaled.
-4. **Model Training**
-   - Linear Regression, Random Forest, and XGBoost Regressor are trained to predict `motor_UPDRS` and `total_UPDRS`.
-5. **Evaluation**
-   - RMSE, MAE, and R2 metrics are reported for each model.
-6. **Model Improvement**
-   - Hyperparameter tuning is performed for XGBoost using GridSearchCV.
-7. **Reporting**
-   - Best model's results and predicted vs actual plots are provided.
+```bash
+pip install -r requirements.txt
+```
 
 ## How to Run
-1. Install the required libraries:
-   ```bash
-   pip install numpy pandas scikit-learn xgboost imbalanced-learn matplotlib seaborn
-   ```
-2. Make sure the dataset is in `parkinsons/parkinsons.data`.
-3. Run the main script:
-   ```bash
-   python parkinsons_detection.py
-   ```
 
-## Results
-- **Test Accuracy:** ~0.92
-- **AUC Score:** ~0.95
-- The model detects Parkinson's Disease with high accuracy.
+### Classification Pipeline
+```bash
+python parkinsons_detection.py
+```
 
+Expected outputs:
+- 5-fold stratified CV model comparison
+- Optuna best hyperparameters for XGBoost
+- Test metrics (Accuracy, ROC-AUC, Precision, Recall/Sensitivity, F1, Specificity)
+- Confusion matrix, ROC curve, calibration curve
+- Top uncertain misclassified samples
+- SHAP feature ranking (if available)
+- Saved artifacts in `outputs/`:
+  - `classification_cv_results.csv`
+  - `classification_best_params.json`
+  - `classification_test_metrics.json`
+  - `classification_misclassified_top25.csv`
 
-### Telemonitoring Regression Results
-**Regression Results for motor_UPDRS:**
-- Linear Regression: RMSE = 7.68, MAE = 6.56, R² = 0.08
-- Random Forest: RMSE = 6.52, MAE = 5.17, R² = 0.33
-- XGBoost: RMSE = 6.86, MAE = 5.45, R² = 0.26
+### Telemonitoring Regression Pipeline
+```bash
+python telemonitoring_analysis.py
+```
 
-**Regression Results for total_UPDRS:**
-- Linear Regression: RMSE = 10.10, MAE = 8.30, R² = 0.08
-- Random Forest: RMSE = 8.45, MAE = 6.53, R² = 0.36
-- XGBoost: RMSE = 8.89, MAE = 6.91, R² = 0.29
+Expected outputs:
+- Group-aware CV results (mean +/- std) for both targets
+- Cold-start tuning for `motor_UPDRS` with aggressive regularization
+- Separate holdout metrics for:
+  - `cold_start_unseen_subject`
+  - `warm_start_subject_history_available`
+- Actual vs predicted plot
+- Top highest-error samples
+- SHAP feature ranking (if available)
+- Saved artifacts in `outputs/`:
+  - `regression_cv_motor_updrs.csv`
+  - `regression_cv_total_updrs.csv`
+  - `regression_best_params_motor_updrs.json`
+  - `regression_holdout_metrics_motor_updrs.json`
+  - `regression_holdout_metrics_motor_updrs_cold.json`
+  - `regression_holdout_metrics_motor_updrs_warm.json`
+  - `regression_top50_errors_motor_updrs.csv`
+  - `regression_top50_errors_motor_updrs_cold.csv`
+  - `regression_top50_errors_motor_updrs_warm.csv`
+  - `regression_shap_top12_motor_updrs_cold.csv`
+  - `regression_shap_top12_motor_updrs_warm.csv`
 
-**Best XGBoost (tuned) for motor_UPDRS:**
-- RMSE = 6.63, MAE = 5.37, R² = 0.31
-- Best params: {'learning_rate': 0.1, 'max_depth': 5, 'n_estimators': 100}
+## Results Comparison
 
-**Interpretation:**
-Random Forest and XGBoost models outperform linear regression for both targets, but the R² values indicate moderate predictive power. Hyperparameter tuning improves XGBoost performance slightly. Further feature engineering or advanced models may improve results.
+### Classification (latest run)
+- Accuracy: **0.9231**
+- ROC-AUC: **0.9828**
+- Precision: **0.9643**
+- Recall (Sensitivity): **0.9310**
+- F1: **0.9474**
+- Specificity: **0.9000**
 
-## Future Work
-- Try different models (Random Forest, SVM)
-- Feature engineering and selection
-- More advanced hyperparameter optimization
+### Telemonitoring Regression (motor_UPDRS)
 
-- Extend regression analysis with more advanced models or feature selection
-- Explore time-series or longitudinal modeling for telemonitoring data
+| Setup | RMSE | MAE | R2 | Notes |
+|---|---:|---:|---:|---|
+| Earlier single holdout pipeline | 8.040 | 6.991 | -0.109 | Group-aware but single-track reporting |
+| **Current cold-start (unseen subject)** | **10.125** | **8.901** | **-0.758** | Harder and more realistic new-patient scenario |
+| **Current warm-start (history available)** | **0.772** | **0.642** | **0.991** | Follow-up scenario with prior patient trajectory |
+
+### Interpretation
+- The **cold-start** score is lower than warm-start because predicting symptom severity for completely unseen subjects is significantly harder.
+- The **warm-start** score is very strong, indicating the model is effective when longitudinal patient history exists.
+- Reporting both tracks provides a production-realistic view instead of one mixed score.
+
+## Reproducibility Notes
+- Random seeds are fixed (`random_state=42`) across workflows.
+- Group-aware splitting is used for telemonitoring to avoid subject leakage.
+- Pipelines are used to ensure transformations are learned only from training data.
+
+## Future Directions
+- Time-aware/longitudinal modeling for telemonitoring trajectories.
+- Probability threshold optimization for classification according to clinical cost.
+- Feature selection and interaction modeling.
+- External validation on independent cohorts.
 
 ## References
 - [UCI Parkinson's Disease Data Set](https://archive.ics.uci.edu/ml/datasets/parkinsons)
-- GeeksforGeeks, TechVidvan, PythonGeeks: Parkinson's Disease ML Projects
+- [UCI Parkinson Telemonitoring Data Set](https://archive.ics.uci.edu/ml/datasets/Parkinsons+Telemonitoring)
